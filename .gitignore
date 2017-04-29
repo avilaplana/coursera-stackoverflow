@@ -1,0 +1,16 @@
+logs
+target
+project/project/target
+project/target
+/.idea
+/.idea_modules
+/.classpath
+/.project
+/.settings
+/RUNNING_PID
+.sbtserver
+
+project/project
+project/settings
+.DS_Store
+src/main/resources/stackoverflow/stackoverflow.dat
