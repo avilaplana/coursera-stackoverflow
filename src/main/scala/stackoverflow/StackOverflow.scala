@@ -1,7 +1,7 @@
 package stackoverflow
 
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.annotation.tailrec
 
@@ -130,7 +130,8 @@ class StackOverflow extends Serializable {
       }
     }
 
-    ???
+    scored.map(s => (firstLangInTag(s._1.tags, langs), s._2)).filter(_._1.isDefined).map(p => (p._1.get*langSpread, p._2))
+
   }
 
 

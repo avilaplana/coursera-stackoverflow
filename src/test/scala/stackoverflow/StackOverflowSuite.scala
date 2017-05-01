@@ -34,7 +34,6 @@ class StackOverflowSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     assert(instantiatable, "Can't instantiate a StackOverflow object")
   }
 
-
   test("groupedPostings should return a group questions and answers grouped together") {
     val posts = StackOverflow.sc.parallelize(Seq(
       Posting(1, 1, None, None, 10, None),
@@ -46,7 +45,7 @@ class StackOverflowSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       Posting(2, 7, None, Some(2), 10, None)
     ))
 
-    val grouped: Array[(Int, Iterable[(Posting, Posting)])] = StackOverflow.groupedPostings(posts).collect()
+    val grouped: Array[(Int, Iterable[(Posting, Posting)])] = testObject.groupedPostings(posts).collect()
 
     grouped.map(e => (e._1, e._2.toList)) should be(Array( // to fix this
       (1, Iterable(
@@ -74,7 +73,7 @@ class StackOverflowSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       ))
     ))
 
-    val scores: Array[(Posting, Int)] = StackOverflow.scoredPostings(groups).collect()
+    val scores: Array[(Posting, Int)] = testObject.scoredPostings(groups).collect()
 
     scores should be(Array(
       (Posting(1, 1, None, None, 10, Some("Scala")), 9),
@@ -82,5 +81,24 @@ class StackOverflowSuite extends FunSuite with Matchers with BeforeAndAfterAll {
     ))
   }
 
+
+  test("vectorPostings should return the calculations of the vector based on position and langSpread") {
+
+    val scored: RDD[(Posting, Int)] = StackOverflow.sc.parallelize(Array(
+      (Posting(1, 1, None, None, 10, Some("Scala")), 9),
+      (Posting(1, 2, None, None, 10, Some("Python")), 8),
+      (Posting(1, 3, None, None, 10, Some("JavaScript")), 10),
+      (Posting(1, 4, None, None, 10, Some("PHP")), 10)
+    ))
+
+    val vector: Array[(Int, Int)] = testObject.vectorPostings(scored).collect()
+
+    vector should be(Array(
+      (10 * 50000, 9),
+      (3 * 50000, 8),
+      (0, 10),
+      (2 * 50000, 10)
+    ))
+  }
 
 }
