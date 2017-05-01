@@ -35,7 +35,7 @@ class StackOverflowSuite extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
 
-  test("groupedPostings should group questions and answers grouped together") {
+  test("groupedPostings should return a group questions and answers grouped together") {
     val posts = StackOverflow.sc.parallelize(Seq(
       Posting(1, 1, None, None, 10, None),
       Posting(1, 2, None, None, 10, None),
@@ -60,4 +60,27 @@ class StackOverflowSuite extends FunSuite with Matchers with BeforeAndAfterAll {
       ))
     ))
   }
+
+  test("scoredPointings should return the question and the highes mark of the answers") {
+    val groups: RDD[(Int, Iterable[(Posting, Posting)])] = StackOverflow.sc.parallelize(Array( // to fix this
+      (1, Iterable(
+        (Posting(1, 1, None, None, 10, Some("Scala")), Posting(2, 3, None, Some(1), 9, Some("Scala"))),
+        (Posting(1, 1, None, None, 10, Some("Scala")), Posting(2, 4, None, Some(1), 7, Some("Scala"))),
+        (Posting(1, 1, None, None, 10, Some("Scala")), Posting(2, 5, None, Some(1), 6, Some("Scala")))
+      )),
+      (2, Iterable(
+        (Posting(1, 2, None, None, 10, Some("Python")), Posting(2, 6, None, Some(2), 7, Some("Python"))),
+        (Posting(1, 2, None, None, 10, Some("Python")), Posting(2, 7, None, Some(2), 8, Some("Python")))
+      ))
+    ))
+
+    val scores: Array[(Posting, Int)] = StackOverflow.scoredPostings(groups).collect()
+
+    scores should be(Array(
+      (Posting(1, 1, None, None, 10, Some("Scala")), 9),
+      (Posting(1, 2, None, None, 10, Some("Python")), 8)
+    ))
+  }
+
+
 }
