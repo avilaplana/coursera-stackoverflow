@@ -23,7 +23,7 @@ object StackOverflow extends StackOverflow {
     val grouped = groupedPostings(raw)
     val scored = scoredPostings(grouped)
     val vectors = vectorPostings(scored)
-    //    assert(vectors.count() == 2121822, "Incorrect number of vectors: " + vectors.count())
+    assert(vectors.count() == 2121822, "Incorrect number of vectors: " + vectors.count())
 
     val means = kmeans(sampleVectors(vectors), vectors, debug = true)
     val results = clusterResults(means, vectors)
@@ -130,7 +130,7 @@ class StackOverflow extends Serializable {
       }
     }
 
-    scored.map(s => (firstLangInTag(s._1.tags, langs), s._2)).filter(_._1.isDefined).map(p => (p._1.get*langSpread, p._2))
+    scored.map(s => (firstLangInTag(s._1.tags, langs), s._2)).filter(_._1.isDefined).map(p => (p._1.get * langSpread, p._2))
 
   }
 
@@ -186,17 +186,20 @@ class StackOverflow extends Serializable {
 
   /** Main kmeans computation */
   @tailrec final def kmeans(means: Array[(Int, Int)], vectors: RDD[(Int, Int)], iter: Int = 1, debug: Boolean = false): Array[(Int, Int)] = {
-    val newMeans = means.clone() // you need to compute newMeans
+    //    val newMeans: Array[(Int, Int)] = means.clone() // you need to compute newMeans
 
+    val pairing: RDD[(Int, (Int, Int))] = vectors.map(p => (findClosest(p, means), p))
+    val clusters: RDD[(Int, Iterable[(Int, Int)])] = pairing.groupByKey()
+    val newMeans: Array[(Int, Int)] = clusters.map(c => averageVectors(c._2)).collect()
     // TODO: Fill in the newMeans array
-    val distance = euclideanDistance(means, newMeans)
+    val distance: Double = euclideanDistance(means, newMeans)
 
     if (debug) {
       println(
         s"""Iteration: $iter
-           |  * current distance: $distance
-           |  * desired distance: $kmeansEta
-           |  * means:""".stripMargin)
+            |  * current distance: $distance
+            |  * desired distance: $kmeansEta
+            |  * means:""".stripMargin)
       for (idx <- 0 until kmeansKernels)
         println(f"   ${means(idx).toString}%20s ==> ${newMeans(idx).toString}%20s  " +
           f"  distance: ${euclideanDistance(means(idx), newMeans(idx))}%8.0f")
