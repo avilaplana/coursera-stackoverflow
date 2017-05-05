@@ -23,7 +23,6 @@ object StackOverflow extends StackOverflow {
     val grouped: RDD[(Int, Iterable[(Posting, Posting)])] = groupedPostings(raw)
     val scored: RDD[(Posting, Int)] = scoredPostings(grouped)
     val vectors: RDD[(Int, Int)] = vectorPostings(scored)
-    println(s"number of ${vectors.count()}")
     assert(vectors.count() == 2121822, "Incorrect number of vectors: " + vectors.count())
 
     val means = kmeans(sampleVectors(vectors), vectors, debug = true)
@@ -141,6 +140,7 @@ class StackOverflow extends Serializable {
       .map {
         case (indexOpt, highestScore) => (indexOpt.get * langSpread, highestScore)
       }
+      .persist()
   }
 
 
@@ -195,7 +195,7 @@ class StackOverflow extends Serializable {
 
   /** Main kmeans computation */
   @tailrec final def kmeans(means: Array[(Int, Int)], vectors: RDD[(Int, Int)], iter: Int = 1, debug: Boolean = false): Array[(Int, Int)] = {
-    //    val newMeans: Array[(Int, Int)] = means.clone() // you need to compute newMeans
+//        val newMeans: Array[(Int, Int)] = means.clone() // you need to compute newMeans
     val pairing: RDD[(Int, (Int, Int))] = vectors.map(p => (findClosest(p, means), p))
     val clusters: RDD[(Int, Iterable[(Int, Int)])] = pairing.groupByKey()
     val meanPartials: Array[(Int, (Int, Int))] = clusters.map { case (meanIndex, vectors) => (meanIndex, averageVectors(vectors)) }.collect()
