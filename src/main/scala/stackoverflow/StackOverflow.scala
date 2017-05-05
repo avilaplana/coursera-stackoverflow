@@ -18,11 +18,12 @@ object StackOverflow extends StackOverflow {
   /** Main function */
   def main(args: Array[String]): Unit = {
 
-    val lines = sc.textFile("src/main/resources/stackoverflow/stackoverflow.csv")
-    val raw = rawPostings(lines)
-    val grouped = groupedPostings(raw)
-    val scored = scoredPostings(grouped)
-    val vectors = vectorPostings(scored)
+    val lines: RDD[String] = sc.textFile("src/main/resources/stackoverflow/stackoverflow.csv")
+    val raw: RDD[Posting] = rawPostings(lines)
+    val grouped: RDD[(Int, Iterable[(Posting, Posting)])] = groupedPostings(raw)
+    val scored: RDD[(Posting, Int)] = scoredPostings(grouped)
+    val vectors: RDD[(Int, Int)] = vectorPostings(scored)
+    println(s"number of ${vectors.count()}")
     assert(vectors.count() == 2121822, "Incorrect number of vectors: " + vectors.count())
 
     val means = kmeans(sampleVectors(vectors), vectors, debug = true)
@@ -130,8 +131,16 @@ class StackOverflow extends Serializable {
       }
     }
 
-    scored.map(s => (firstLangInTag(s._1.tags, langs), s._2)).filter(_._1.isDefined).map(p => (p._1.get * langSpread, p._2))
-
+    scored
+      .map {
+        case (question, highestScore) => (firstLangInTag(question.tags, langs), highestScore)
+      }
+      .filter {
+        case (indexOpt, highestScore) => indexOpt.isDefined
+      }
+      .map {
+        case (indexOpt, highestScore) => (indexOpt.get * langSpread, highestScore)
+      }
   }
 
 
@@ -187,10 +196,16 @@ class StackOverflow extends Serializable {
   /** Main kmeans computation */
   @tailrec final def kmeans(means: Array[(Int, Int)], vectors: RDD[(Int, Int)], iter: Int = 1, debug: Boolean = false): Array[(Int, Int)] = {
     //    val newMeans: Array[(Int, Int)] = means.clone() // you need to compute newMeans
-
     val pairing: RDD[(Int, (Int, Int))] = vectors.map(p => (findClosest(p, means), p))
     val clusters: RDD[(Int, Iterable[(Int, Int)])] = pairing.groupByKey()
-    val newMeans: Array[(Int, Int)] = clusters.map(c => averageVectors(c._2)).collect()
+    val meanPartials: Array[(Int, (Int, Int))] = clusters.map { case (meanIndex, vectors) => (meanIndex, averageVectors(vectors)) }.collect()
+    val newMeans = means.zipWithIndex.map {
+      case (mean, index) =>
+        meanPartials.find(_._1 == index) match {
+          case None => mean
+          case Some((index, newMean)) => newMean
+        }
+    }
     // TODO: Fill in the newMeans array
     val distance: Double = euclideanDistance(means, newMeans)
 
@@ -283,14 +298,18 @@ class StackOverflow extends Serializable {
   //
   //
   def clusterResults(means: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[(String, Double, Int, Int)] = {
-    val closest = vectors.map(p => (findClosest(p, means), p))
-    val closestGrouped = closest.groupByKey()
+    val closest: RDD[(Int, (Int, Int))] = vectors.map(p => (findClosest(p, means), p))
+    val closestGrouped: RDD[(Int, Iterable[(Int, Int)])] = closest.groupByKey()
 
     val median = closestGrouped.mapValues { vs =>
-      val langLabel: String = ??? // most common language in the cluster
-    val langPercent: Double = ??? // percent of the questions in the most common language
-    val clusterSize: Int = ???
-      val medianScore: Int = ???
+      val questionsByLang: Map[Int, Iterable[(Int, Int)]] = vs.groupBy(_._1)
+      val numberQuestionsByLanguage: List[(Int, Int)] = questionsByLang.mapValues(_.size).toList.sortWith((v1, v2) => v1._2 > v2._2)
+
+      val langLabel: String = langs(numberQuestionsByLanguage.head._1 / langSpread) // most common language in the cluster
+    val langPercent: Double = numberQuestionsByLanguage.head._2 / (numberQuestionsByLanguage.map(_._2).sum) * 100 // percent of the questions in the most common language
+    val clusterSize: Int = vs.size
+      val (mostCommonLang, scores): (Int, Iterable[(Int, Int)]) = questionsByLang.filter(_._1 == numberQuestionsByLanguage.head._1).head
+      val medianScore: Int = scores.map(_._2).sum/scores.size
 
       (langLabel, langPercent, clusterSize, medianScore)
     }
